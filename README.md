@@ -2,8 +2,8 @@
 
 *A machine learning research project comparing TF-IDF baseline with DistilBERT transformers for detecting factual reliability in Reddit posts, validated against professional news articles from Reuters.*
 
-**Authors:** Ria Kapoor, Bitanya Kebede, Charlie King, George Wright
-**Institution:** Duke University
+**Authors:** Ria Kapoor, Bitanya Kebede, Charlie King, George Wright<br>
+**Institution:** Duke University<br>
 **Course:** CS376
 
 ## Project Overview
