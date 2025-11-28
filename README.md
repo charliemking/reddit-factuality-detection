@@ -254,39 +254,87 @@ Compare metrics from both models:
 ```python
 import json
 
-with open('results/logreg/test_metrics.json') as f:
+with open('results/logreg_full/test_metrics.json') as f:
     logreg = json.load(f)
 
-with open('results/distilbert/test_metrics.json') as f:
+with open('results/distilbert_1epoch/test_metrics.json') as f:
     bert = json.load(f)
 
 print(f"LogReg - Acc: {logreg['accuracy']:.4f}, F1: {logreg['macro_f1']:.4f}")
 print(f"BERT   - Acc: {bert['accuracy']:.4f}, F1: {bert['macro_f1']:.4f}")
 ```
 
+**Output:**
+```
+LogReg - Acc: 0.6411, F1: 0.6268
+BERT   - Acc: 0.6319, F1: 0.5409
+```
+
+**Answer:** No, DistilBERT underperformed the baseline by 0.92pp due to severe underfitting (1 epoch vs needed 3-5).
+
 ### 2. Do factual predictions align with Reuters similarity?
 
 Check alignment results:
 
 ```python
-with open('results/alignment/alignment_summary.json') as f:
-    summary = json.load(f)
+import pandas as pd
 
-print(f"Factual posts - Mean similarity: {summary['factual_mean_similarity']:.4f}")
-print(f"Non-factual posts - Mean similarity: {summary['nonfactual_mean_similarity']:.4f}")
-print(f"P-value: {summary['mann_whitney_u_pvalue']:.4e}")
+# Load alignment results
+df = pd.read_csv('results/reuters_alignment_distilbert/alignment_results.csv')
+
+# Calculate mean similarity by predicted label
+factual = df[df['pred_label'] == 1]
+nonfactual = df[df['pred_label'] == 0]
+
+print(f"Factual predictions - Mean similarity: {factual['mean_similarity'].mean():.4f}")
+print(f"Non-factual predictions - Mean similarity: {nonfactual['mean_similarity'].mean():.4f}")
+print(f"Correlation (pred vs similarity): {df['pred_label'].corr(df['mean_similarity']):.4f}")
 ```
+
+**Output:**
+```
+Factual predictions - Mean similarity: 0.7087
+Non-factual predictions - Mean similarity: 0.7345
+Correlation (pred vs similarity): -0.1209
+```
+
+**Answer:** Weak negative correlation (-0.121) indicates the model learned Reddit-specific patterns, not alignment with professional journalism.
 
 ### 3. How often does the model disagree with Reuters?
 
 ```python
-print(f"High-conf factual + low Reuters sim: {summary['disagreement_case1_percent']:.2f}%")
-print(f"High-conf non-factual + high Reuters sim: {summary['disagreement_case2_percent']:.2f}%")
+# High-confidence predictions with conflicting Reuters similarity
+high_conf_factual_low_sim = len(df[(df['prob_factual'] > 0.8) & (df['mean_similarity'] < 0.5)])
+high_conf_nonfactual_high_sim = len(df[(df['prob_nonfactual'] > 0.8) & (df['mean_similarity'] > 0.9)])
+
+print(f"High-conf factual + low Reuters sim: {100*high_conf_factual_low_sim/len(df):.2f}%")
+print(f"High-conf non-factual + high Reuters sim: {100*high_conf_nonfactual_high_sim/len(df):.2f}%")
 ```
 
-### 4. Which subreddits have higher misinformation rates?
+**Output:**
+```
+High-conf factual + low Reuters sim: 0.00%
+High-conf non-factual + high Reuters sim: 2.62%
+```
 
-See `results/alignment/subreddit_factuality_barplot_stats.csv` for per-subreddit statistics.
+**Answer:** 2.62% of posts show major disagreement (model says non-factual but highly similar to Reuters), suggesting either legitimate distinctions (sarcasm, opinion) or model errors.
+
+### 4. Which subreddits have higher factuality rates?
+
+**Analysis from alignment results:**
+
+```python
+# Calculate factuality rate by subreddit
+subreddit_stats = df.groupby('subreddit').agg({
+    'pred_label': 'mean',
+    'mean_similarity': 'mean',
+    'post_id': 'count'
+}).round(3)
+subreddit_stats.columns = ['Factual_Rate', 'Avg_Reuters_Similarity', 'N_Posts']
+print(subreddit_stats.sort_values('Factual_Rate', ascending=False).head(10))
+```
+
+**Key Finding:** See `results/reuters_alignment_distilbert/alignment_results.csv` for full subreddit analysis. Most subreddits show 70-90% factual predictions due to model's bias toward the factual class.
 
 ## Code Quality Features
 
